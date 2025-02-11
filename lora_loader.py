@@ -69,6 +69,58 @@ class HunyuanVideoLoraLoader:
                 
         return filtered_lora
 
+    def check_for_musubi(self, lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
+        prefix = "lora_unet_"
+        musubi = False
+        lora_alphas = {}
+        for key, value in lora.items():
+            if key.startswith(prefix):
+                lora_name = key.split(".", 1)[0]  # before first dot
+                if lora_name not in lora_alphas and "alpha" in key:
+                    lora_alphas[lora_name] = value
+                    musubi = True
+        if musubi:
+            print("Loading Musubi Tuner format LoRA...")
+            converted_lora = {}
+            for key, weight in lora.items():
+                if key.startswith(prefix):
+                    if "alpha" in key:
+                        continue
+                lora_name = key.split(".", 1)[0]  # before first dot
+                # HunyuanVideo lora name to module name: ugly but works
+                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
+                module_name = module_name.replace("_", ".")  # replace "_" with "."
+                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
+                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
+                module_name = module_name.replace("img.", "img_")  # fix img
+                module_name = module_name.replace("txt.", "txt_")  # fix txt
+                module_name = module_name.replace("attn.", "attn_")  # fix attn
+                diffusers_prefix = "diffusion_model"
+                if "lora_down" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
+                    dim = weight.shape[0]
+                elif "lora_up" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
+                    dim = weight.shape[1]
+                else:
+                    print(f"unexpected key: {key} in Musubi LoRA format")
+                    continue
+                # scale weight by alpha
+                if lora_name in lora_alphas:
+                    # we scale both down and up, so scale is sqrt
+                    scale = lora_alphas[lora_name] / dim
+                    scale = scale.sqrt()
+                    weight = weight * scale
+                else:
+                    print(f"missing alpha for {lora_name}")
+
+                converted_lora[new_key] = weight
+            return converted_lora
+        else:
+            print("Loading Diffusers format LoRA...")
+            return lora
+
     def load_lora(self, model, lora_name: str, strength: float, blocks_type: str):
         """
         加载并应用LoRA到模型
@@ -112,8 +164,9 @@ class HunyuanVideoLoraLoader:
             lora = load_torch_file(lora_path)
             self.loaded_lora = (lora_path, lora)
         
+        diffusers_lora = self.check_for_musubi(lora)
         # 过滤并转换LoRA权重
-        filtered_lora = self.filter_lora_keys(lora, blocks_type)
+        filtered_lora = self.filter_lora_keys(diffusers_lora, blocks_type)
         
         # 应用LoRA
         new_model, _ = load_lora_for_models(model, None, filtered_lora, strength, 0)
