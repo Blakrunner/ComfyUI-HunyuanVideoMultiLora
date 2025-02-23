@@ -87,35 +87,34 @@ class HunyuanVideoLoraLoader:
                 if key.startswith(prefix):
                     if "alpha" in key:
                         continue
-                lora_name = key.split(".", 1)[0]  # before first dot
-                # HunyuanVideo lora name to module name: ugly but works
-                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
-                module_name = module_name.replace("_", ".")  # replace "_" with "."
-                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
-                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
-                module_name = module_name.replace("img.", "img_")  # fix img
-                module_name = module_name.replace("txt.", "txt_")  # fix txt
-                module_name = module_name.replace("attn.", "attn_")  # fix attn
-                diffusers_prefix = "diffusion_model"
-                if "lora_down" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
-                    dim = weight.shape[0]
-                elif "lora_up" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
-                    dim = weight.shape[1]
-                else:
-                    print(f"unexpected key: {key} in Musubi LoRA format")
-                    continue
-                # scale weight by alpha
-                if lora_name in lora_alphas:
-                    # we scale both down and up, so scale is sqrt
-                    scale = lora_alphas[lora_name] / dim
-                    scale = scale.sqrt()
-                    weight = weight * scale
-                else:
-                    print(f"missing alpha for {lora_name}")
-
-                converted_lora[new_key] = weight
+                    lora_name = key.split(".", 1)[0]  # before first dot
+                    # HunyuanVideo lora name to module name: ugly but works
+                    module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
+                    module_name = module_name.replace("_", ".")  # replace "_" with "."
+                    module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
+                    module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
+                    module_name = module_name.replace("img.", "img_")  # fix img
+                    module_name = module_name.replace("txt.", "txt_")  # fix txt
+                    module_name = module_name.replace("attn.", "attn_")  # fix attn
+                    diffusers_prefix = "diffusion_model"
+                    if "lora_down" in key:
+                        new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
+                        dim = weight.shape[0]
+                    elif "lora_up" in key:
+                        new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
+                        dim = weight.shape[1]
+                    else:
+                        print(f"unexpected key: {key} in Musubi LoRA format")
+                        continue
+                    # scale weight by alpha
+                    if lora_name in lora_alphas:
+                        # we scale both down and up, so scale is sqrt
+                        scale = lora_alphas[lora_name] / dim
+                        scale = scale.sqrt()
+                        weight = weight * scale
+                    else:
+                        print(f"missing alpha for {lora_name}")
+                    converted_lora[new_key] = weight
             return converted_lora
         else:
             print("Loading Diffusers format LoRA...")
