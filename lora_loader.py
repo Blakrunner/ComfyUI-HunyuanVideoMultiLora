@@ -6,6 +6,14 @@ import torch
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
+BSINGLE = "single_blocks"
+BDOUBLE = "double_blocks"
+PRESET_BLOCKS = { # Name = single / double, accepted layers.
+"single_blocks": (BSINGLE, None),
+"double_blocks": (BSINGLE, None),
+"db0-9": (BDOUBLE, list(range(0, 10))),
+"db10-19": (BDOUBLE, list(range(10, 20))),
+}
 
 class HunyuanVideoLoraLoader:
     """
@@ -34,7 +42,8 @@ class HunyuanVideoLoraLoader:
                     "step": 0.01,
                     "display": "number"
                 }),
-                "blocks_type": (["all", "single_blocks", "double_blocks"],),
+                "blocks_type": (["all", "single_blocks", "double_blocks",
+                                 "db0-9", "db10-19"],),
             }
         }
 
@@ -65,10 +74,21 @@ class HunyuanVideoLoraLoader:
         for key, value in lora.items():
             base_key = self.convert_key_format(key)
 
-            # 检查是否包含目标block
-            if blocks_type == "single_blocks" and "single_blocks" in base_key:
-                filtered_lora[key] = value
-            elif blocks_type == "double_blocks" and "double_blocks" in base_key:
+            # SBM Rewritten to standard form.
+            indfilt = True
+            base_name, base_layer = PRESET_BLOCKS.get(blocks_type, ["", None])
+            if base_name not in base_key:
+                indfilt = False
+            elif base_layer is not None: # Check if layer index is in list.
+                try:
+                    base_split = base_key.split(".") # Assume index comes after the name.
+                    base_index = int(base_split[base_split.index(base_name) + 1])
+                    if base_index not in base_layer:
+                        indfilt = False
+                except ValueError: # Improper format.
+                    indfilt = False
+            
+            if indfilt:
                 filtered_lora[key] = value
 
         return filtered_lora
