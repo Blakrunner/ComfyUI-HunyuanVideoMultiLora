@@ -10,7 +10,7 @@ BSINGLE = "single_blocks"
 BDOUBLE = "double_blocks"
 PRESET_BLOCKS = { # Name = single / double, accepted layers.
 "single_blocks": (BSINGLE, None),
-"double_blocks": (BSINGLE, None),
+"double_blocks": (BDOUBLE, None),
 "db0-9": (BDOUBLE, list(range(0, 10))),
 "db10-19": (BDOUBLE, list(range(10, 20))),
 }
